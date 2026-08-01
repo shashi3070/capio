@@ -146,18 +146,51 @@ Capio raises from the `capio.exceptions` module. Two rules to remember:
 
 ### Timeout
 
+A timed-out invocation raises `CapioTimeoutError`. It subclasses
+`CapioCancelledBase`, so **catch it explicitly** — `except Exception` will not:
+
 ```python
+import time
+from capio import use
+from capio.exceptions import CapioTimeoutError, CapioCancelledBase
+
+@use(timeout={"seconds": 2})
+def call():
+    print("call def is called!!")
+    time.sleep(3)
+
+try:
+    call()
+except CapioTimeoutError as exc:
+    print(f"timed out after {exc.seconds}s")   # exc.seconds == 2.0
+except CapioCancelledBase:
+    print("cancelled")                         # covers any other capio cancellation
+```
+
+Two things worth knowing about sync timeouts:
+
+1. The call runs to completion first — `time.sleep(3)` cannot be interrupted at
+   2s, so `CapioTimeoutError` is raised *after* the function returns (3s in).
+   This is the documented cooperative behavior for sync functions (RFC-018 §3.3).
+2. For a **hard** timeout that interrupts at 2s, use an async function — the
+   async path uses `asyncio.wait_for` and cancels the underlying task:
+
+```python
+import asyncio
 from capio import use
 from capio.exceptions import CapioTimeoutError
 
-@use.timeout(seconds=1)
-def slow() -> str:
-    ...
+@use(timeout={"seconds": 2})
+async def call():
+    await asyncio.sleep(3)
 
-try:
-    slow()
-except CapioTimeoutError as exc:
-    print(f"timed out after {exc.seconds}s")   # exc.seconds == 1.0
+async def main():
+    try:
+        await call()
+    except CapioTimeoutError:
+        print("hard timeout at 2s")   # fired at 2s; the task is cancelled
+
+asyncio.run(main())
 ```
 
 Prefer returning a sentinel over raising? Set `return_on`:
