@@ -275,9 +275,15 @@ for every option of every capability (types, defaults, examples).
 
 ## Custom capabilities
 
+Write your own capability by subclassing `Capability` and implementing `run`.
+Then register it and use it like a built-in.
+
+**1. Simple audit** — wrap the call, observe the result:
+
 ```python
 from capio import Capability, use
 from capio.registry import registry
+from capio.events import Event
 
 class Audit(Capability):
     name = "audit"
@@ -285,7 +291,7 @@ class Audit(Capability):
 
     def run(self, ctx, call_next):
         result = call_next(ctx)
-        print("audit:", ctx.fn_name, result)
+        ctx.emit(Event("audit.after", {"fn": ctx.fn_name, "result": repr(result)}))
         return result
 
 registry.register(Audit)
@@ -295,7 +301,75 @@ def handler(x: int) -> int:
     return x * 2
 ```
 
-For async-aware capabilities, override `run_async` and `await call_next(ctx)`.
+**2. Async-aware timing** — override `run_async` and `await` the inner call
+(implement both `run` and `run_async` to support sync and async functions):
+
+```python
+import time
+from capio import Capability, use
+from capio.registry import registry
+
+class Measure(Capability):
+    name = "measure"
+    priority = 500
+
+    def run(self, ctx, call_next):
+        start = time.perf_counter()
+        try:
+            return call_next(ctx)
+        finally:
+            print(f"{ctx.fn_name}: {time.perf_counter() - start:.3f}s")
+
+    async def run_async(self, ctx, call_next):
+        start = time.perf_counter()
+        try:
+            return await call_next(ctx)
+        finally:
+            print(f"{ctx.fn_name}: {time.perf_counter() - start:.3f}s")
+
+registry.register(Measure)
+
+@use.measure()
+async def fetch(url: str) -> bytes:
+    ...
+```
+
+**3. Stateful with config** — declare a `schema` for validated options; state is
+isolated per decorated function:
+
+```python
+from capio import Capability, use
+from capio.registry import registry
+
+class RequestCounter(Capability):
+    name = "request_counter"
+    priority = 900                          # runs outermost
+    schema = {
+        "log_every": {"type": "int", "default": 100, "min": 1},
+        "enable": {"type": "any", "default": None},
+    }
+
+    def __init__(self):
+        super().__init__()
+        self.count = 0
+
+    def run(self, ctx, call_next):
+        self.count += 1
+        if self.count % self.cfg.log_every == 0:
+            print(f"{self.count} calls to {ctx.fn_name}")
+        return call_next(ctx)
+
+registry.register(RequestCounter)
+
+@use.request_counter(log_every=2)
+def ping() -> bool:
+    return True
+```
+
+The full guide — lifecycle hooks (`configure` / `initialize` / `start` /
+`stop`), `supports`, `requires_backends`, `degradation`, backends, events, and
+an end-to-end example — is in the
+[custom capabilities guide](https://github.com/shashi3070/capio/blob/main/docs/custom_capabilities.md).
 
 ## Context & events
 
@@ -333,6 +407,7 @@ If your OS blocks pip-generated console scripts, use `python -m capio.cli ...`.
 
 - **[Architecture guide](https://github.com/shashi3070/capio/blob/main/docs/architecture.md)** — how each part is built: code walkthrough, snippets, and the invocation flow
 - **[Usage guide](https://github.com/shashi3070/capio/blob/main/docs/usage.md)** — the full manual: every capability and configuration option
+- **[Custom capabilities guide](https://github.com/shashi3070/capio/blob/main/docs/custom_capabilities.md)** — SDK reference, lifecycle, backends, and an end-to-end example
 - **[RFCs](https://github.com/shashi3070/capio/tree/main/docs/rfcs)** — the normative architecture: RFC-000 index, RFC-001 vision, RFC-002 core concepts, RFC-003 `use` API, RFC-004…024 architecture, RFC-025 errors, RFC-026 security, RFC-027 performance, RFC-028 CLI, RFC-029 testing, RFC-030 AI/agents/LLM/MCP, RFC-031 reference implementation, RFC-032 roadmap, RFC-033 migration/FAQ
 - **[Changelog](https://github.com/shashi3070/capio/blob/main/CHANGELOG.md)**
 
