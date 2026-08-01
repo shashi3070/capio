@@ -271,7 +271,7 @@ runtime.services.bind("bus.publish", MyPubSubBackend())
 ```
 
 Built-in backend names: `cache.memory`, `trace.console`, `metrics.null`,
-`log.stdio`.
+`log.stdio`, `audit.memory`, `store.memory`, `broker.memory`, `queue.memory`.
 
 ---
 
@@ -294,16 +294,27 @@ registry.names()                 # all registered names
   regardless of priority (RFC-005 rule 1).
 - Priority of the built-ins, for reference:
 
-  | Capability | Priority |
-  |---|---|
-  | rate_limit | 850 |
-  | circuit_breaker | 800 |
-  | cache | 750 |
-  | retry | 700 |
-  | timeout | 650 |
-  | trace | 600 |
-  | log | 550 |
-  | metrics | 500 |
+  | Capability | Priority | Capability | Priority |
+  |---|---|---|---|
+  | rate_limit | 850 | mask | 680 |
+  | throttle | 840 | dedup | 670 |
+  | debounce | 830 | publish | 660 |
+  | circuit_breaker | 800 | consume | 650 |
+  | audit | 760 | timeout | 650 |
+  | cache | 750 | queue | 640 |
+  | auth | 710 | transaction | 630 |
+  | retry | 700 | workflow | 620 |
+  | validate | 700 | cron | 610 |
+  | encrypt | 690 | compensate | 600 |
+  | serialize | 685 | trace | 600 |
+  | idempotent | 590 | log | 550 |
+  | metrics | 500 | guardrails | 480 |
+  | token_budget | 470 | model_router | 460 |
+  | prompt_cache | 450 | semantic_cache | 440 |
+  | llm_cache | 430 | memory | 420 |
+  | rag | 410 | ingest | 405 |
+  | tool | 402 | agent | 401 |
+  | llm | 400 |  |  |
 
 ---
 

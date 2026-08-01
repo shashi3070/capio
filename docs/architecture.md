@@ -1,6 +1,6 @@
 # Capio Architecture & Code Walkthrough
 
-How the Capio v0.1.0 reference implementation is built, module by module — with
+How the Capio v1.0.0 reference implementation is built, module by module — with
 code snippets and the invocation flow. This is the companion to
 [`usage.md`](usage.md) (the user-facing manual).
 
@@ -26,6 +26,7 @@ capio/
 │   ├── pipeline.py              # detect_kind, ExecutionPipeline, build_pipeline
 │   ├── runtime.py               # CapioRuntime + default_runtime() singleton
 │   ├── use.py                   # the `use` facade (chained/composite/introspection)
+│   ├── serialize.py             # serializer registry (json/pickle + custom codecs)
 │   ├── cli.py                   # typer CLI: doctor/inspect/graph/benchmark/version
 │   ├── sdk/
 │   │   └── capability.py        # the Capability base class (the plugin contract)
@@ -36,12 +37,22 @@ capio/
 │   │   ├── memory_cache.py      # thread-safe TTL dict cache
 │   │   ├── console_trace.py     # JSON-lines span sink
 │   │   ├── null_metrics.py      # in-memory metric records
-│   │   └── stdio_log.py         # logging-facade structured records
+│   │   ├── stdio_log.py         # logging-facade structured records
+│   │   ├── audit_log.py         # append-only SHA-256 hash-chained audit trail
+│   │   ├── memory_store.py      # namespaced KV with TTL + sequence
+│   │   ├── memory_broker.py     # pub/sub with per-group cursors
+│   │   └── task_queue.py        # FIFO task queue with worker threads
 │   └── capabilities/
-│       ├── retry.py  cache.py  timeout.py  circuit_breaker.py
-│       ├── rate_limit.py  trace.py  metrics.py  log.py
+│       ├── resilience: retry  cache  timeout  circuit_breaker  rate_limit
+│       │               throttle  debounce
+│       ├── data/auth:  audit  auth  validate  serialize  encrypt  mask  dedup
+│       ├── messaging:  publish  consume  queue  transaction  workflow  cron
+│       │               compensate  idempotent
+│       ├── ai:         llm  llm_cache  semantic_cache  prompt_cache  memory
+│       │               rag  ingest  tool  agent  guardrails  token_budget
+│       │               model_router  (_ai shared helpers)
 │       └── __init__.py          # imports each module -> auto-registration
-├── tests/                       # 67 pytest tests
+├── tests/                       # 126 pytest tests
 └── examples/quickstart.py
 ```
 
@@ -203,6 +214,35 @@ Standard event names emitted by the base capabilities:
 | trace | `trace.exporter_failed` |
 | metrics | `metrics.exporter_failed` |
 | log | `log.failed` |
+| throttle | `throttle.rejected` |
+| debounce | `debounce.scheduled`, `debounce.dropped`, `debounce.executed`, `debounce.error` |
+| audit | `audit.missing`, `audit.failed` |
+| auth | `auth.authenticated`, `auth.denied` |
+| validate | `validate.failed` |
+| serialize | `serialize.input`, `serialize.output` |
+| encrypt | `encrypt.missing_key` |
+| mask | `mask.applied` |
+| dedup | `dedup.hit`, `dedup.waiting`, `dedup.miss` |
+| publish | `publish.sent`, `publish.failed`, `publish.missing`, `publish.outboxed` |
+| consume | `consume.missing`, `consume.empty`, `consume.delivered` |
+| queue | `queue.missing`, `queue.enqueued`, `queue.empty`, `queue.dequeued` |
+| transaction | `transaction.started`, `transaction.committed`, `transaction.rolled_back`, `transaction.rollback_failed` |
+| workflow | `workflow.started`, `workflow.step`, `workflow.step_failed`, `workflow.completed` |
+| cron | `cron.fired`, `cron.skipped`, `cron.invalid` |
+| compensate | `compensate.started`, `compensate.executed`, `compensate.failed` |
+| idempotent | `idempotent.replay`, `idempotent.conflict`, `idempotent.stored` |
+| llm | `llm.started`, `llm.completed`, `llm.failed` |
+| llm_cache | `llm_cache.hit`, `llm_cache.miss` |
+| semantic_cache | `semantic_cache.hit`, `semantic_cache.miss` |
+| prompt_cache | `prompt_cache.hit`, `prompt_cache.miss` |
+| memory | `memory.retrieved`, `memory.stored` |
+| rag | `rag.retrieved` |
+| ingest | `ingest.stored`, `ingest.missing` |
+| tool | `tool.registered` |
+| agent | `agent.started`, `agent.step`, `agent.tool_call`, `agent.tool_missing`, `agent.finished` |
+| guardrails | `guardrails.violated` |
+| token_budget | `token_budget.exceeded` |
+| model_router | `model_router.selected` |
 
 ---
 
@@ -316,10 +356,14 @@ capabilities resolve them lazily via `self.backend(name)`.
 
 ```python
 # runtime.py
-self.services.bind("cache.memory", MemoryCacheBackend())
+self.services.bind("cache.memory",  MemoryCacheBackend())
 self.services.bind("trace.console", ConsoleTraceBackend())
 self.services.bind("metrics.null",  NullMetricsBackend())
 self.services.bind("log.stdio",     StdioLogBackend())
+self.services.bind("audit.memory",  InMemoryAuditBackend())
+self.services.bind("store.memory",  InMemoryStore())
+self.services.bind("broker.memory", InMemoryBroker())
+self.services.bind("queue.memory",  InMemoryTaskQueue())
 ```
 
 **The `_MISSING` sentinel** (`memory_cache.py`) is the key trick that lets a
@@ -348,6 +392,31 @@ evicts by max-size + expired keys.
 
 Every capability follows the same shape: a `schema`, a `run` method, and (where
 needed) a `run_async`. Highlights:
+
+The 28 capabilities added in 1.0.0 follow four recurring patterns:
+
+- **Execution guards** (`throttle`, `debounce`) — a `threading.BoundedSemaphore`
+  / `asyncio.Semaphore` for admission control, and a per-key pending table with
+  `threading.Timer` / `loop.call_later` for coalescing.
+- **Data/auth** (`audit`, `auth`, `validate`, `serialize`, `encrypt`, `mask`,
+  `dedup`) —
+  mutate `ctx.kwargs` (replacing the mapping) before `call_next` and/or rewrite
+  the result after; `serialize` encodes inputs/decodes outputs through the
+  `capio.serialize` registry (safe `json` default, `pickle` opt-in via `trust`);
+  `encrypt` derives a key with `pbkdf2_hmac` and XORs an
+  HMAC-SHA256 keystream (no third-party crypto).
+- **Messaging/orchestration** (`publish`, `consume`, `queue`, `transaction`,
+  `workflow`, `cron`, `compensate`, `idempotent`) — resolve a backend via
+  `self.backend(name)` and either produce (publish/enqueue/commit) or dispatch
+  (consume/dequeue/rollback); `cron` is a *gate*, not a clock — it decides
+  whether an arriving call is due.
+- **AI** (`llm`, `llm_cache`, `semantic_cache`, `prompt_cache`, `memory`, `rag`,
+  `ingest`, `tool`, `agent`, `guardrails`, `token_budget`, `model_router`) —
+  share `_ai.py` helpers (`query_text`, `messages`, `result_text`,
+  `request_signature`, `cosine`, `count_tokens`, `chunk_text`). They read/write
+  `ctx.kwargs`, store the model response in
+  `ctx.capability("llm")["state"]["response"]`, and degrade fail-safe when the
+  store backend or embedder is missing.
 
 ### 10.1 Retry (`retry.py`, priority 700)
 

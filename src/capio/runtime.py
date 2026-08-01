@@ -5,10 +5,14 @@ from __future__ import annotations
 import threading
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
+from .backends.audit_log import InMemoryAuditBackend
 from .backends.console_trace import ConsoleTraceBackend
+from .backends.memory_broker import InMemoryBroker
 from .backends.memory_cache import MemoryCacheBackend
+from .backends.memory_store import InMemoryStore
 from .backends.null_metrics import NullMetricsBackend
 from .backends.stdio_log import StdioLogBackend
+from .backends.task_queue import InMemoryTaskQueue
 from .config import FrozenConfig, env_from_os, merge_config, validate_config
 from .di import ServiceContainer
 from .events import EventBus
@@ -17,7 +21,7 @@ from .registry import registry
 if TYPE_CHECKING:
     from .pipeline import ExecutionPipeline
 
-__version__ = "0.1.1"
+__version__ = "1.0.0"
 
 
 class CapioRuntime:
@@ -35,11 +39,15 @@ class CapioRuntime:
         self.event_bus = EventBus()
         self.registry = registry
 
-        # register built-in backends (RFC-015 §4)
+        # register built-in backends (RFC-015 §4, RFC-020 §3, RFC-023 §2-4)
         self.services.bind("cache.memory", MemoryCacheBackend())
         self.services.bind("trace.console", ConsoleTraceBackend())
         self.services.bind("metrics.null", NullMetricsBackend())
         self.services.bind("log.stdio", StdioLogBackend())
+        self.services.bind("audit.memory", InMemoryAuditBackend())
+        self.services.bind("store.memory", InMemoryStore())
+        self.services.bind("broker.memory", InMemoryBroker())
+        self.services.bind("queue.memory", InMemoryTaskQueue())
 
         # ensure base capabilities are registered (idempotent)
         import capio.capabilities  # noqa: F401

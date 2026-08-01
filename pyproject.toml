@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "capio"
-version = "0.1.1"
+version = "1.0.0"
 description = "Composable capabilities for Python: resilience, caching, observability, and AI behavior. A capability runtime, not a decorator library."
 readme = "README.md"
 license-files = ["LICENSE"]
@@ -13,7 +13,7 @@ authors = [
     { name = "Shashi Kundan", email = "shashikundan0001@gmail.com" },
 ]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",

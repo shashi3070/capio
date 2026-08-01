@@ -35,8 +35,15 @@ A **capability runtime**, not a decorator library.
 
 ## Features
 
-- **8 batteries-included capabilities** — retry, cache, timeout, circuit
-  breaker, rate limit, trace, metrics, log — plus a plugin SDK for your own.
+- **37 batteries-included capabilities** — resilience (`retry`, `cache`,
+  `timeout`, `circuit_breaker`, `rate_limit`, `throttle`, `debounce`), data &
+  auth (`audit`, `auth`, `validate`, `serialize`, `encrypt`, `mask`, `dedup`),
+  messaging &
+  orchestration (`publish`, `consume`, `queue`, `transaction`, `workflow`,
+  `cron`, `compensate`, `idempotent`), AI (`llm`, `llm_cache`, `semantic_cache`,
+  `prompt_cache`, `memory`, `rag`, `ingest`, `tool`, `agent`, `guardrails`,
+  `token_budget`, `model_router`), and observability (`trace`, `metrics`, `log`)
+  — plus a plugin SDK for your own.
   → [every capability and option](https://github.com/shashi3070/capio/blob/main/docs/usage.md#4-capability-reference-every-option)
 - **One uniform API** — `@use.<name>(...)` chained form and the equivalent
   `@use(...)` composite form.
@@ -136,9 +143,9 @@ Ordering is outermost-first; the composite form sorts by priority:
 
 ![Capio pipeline ordering](https://raw.githubusercontent.com/shashi3070/capio/main/docs/images/pipeline.png)
 
-Capabilities are **fail-safe by default**: if the cache, trace, metrics, or log
-backend fails, the invocation proceeds untouched (the failure is emitted as an
-event). Under `strict` mode the same failures raise.
+Capabilities are **fail-safe by default**: if the cache, trace, metrics, log,
+audit, or store backend fails, the invocation proceeds untouched (the failure
+is emitted as an event). Under `strict` mode the same failures raise.
 
 A deep, module-by-module code walkthrough lives in the
 [architecture document](https://github.com/shashi3070/capio/blob/main/docs/architecture.md).
@@ -275,9 +282,38 @@ These are raised at decoration / first-call time and are all
 | `use.timeout` | Timeout | Bound execution time | [RFC-018](https://github.com/shashi3070/capio/blob/main/docs/rfcs/RFC-018-breaker-timeout-ratelimit.md) |
 | `use.circuit_breaker` | Circuit Breaker | Fail fast when a dependency is unhealthy | [RFC-018](https://github.com/shashi3070/capio/blob/main/docs/rfcs/RFC-018-breaker-timeout-ratelimit.md) |
 | `use.rate_limit` | Rate Limit | Admission control | [RFC-018](https://github.com/shashi3070/capio/blob/main/docs/rfcs/RFC-018-breaker-timeout-ratelimit.md) |
+| `use.throttle` | Throttle | Bound in-flight concurrency | [RFC-018](https://github.com/shashi3070/capio/blob/main/docs/rfcs/RFC-018-breaker-timeout-ratelimit.md) |
+| `use.debounce` | Debounce | Coalesce rapid calls | [RFC-018](https://github.com/shashi3070/capio/blob/main/docs/rfcs/RFC-018-breaker-timeout-ratelimit.md) |
 | `use.trace` | Trace | Span recording | [RFC-019](https://github.com/shashi3070/capio/blob/main/docs/rfcs/RFC-019-trace-metrics.md) |
 | `use.metrics` | Metrics | Counters + histograms | [RFC-019](https://github.com/shashi3070/capio/blob/main/docs/rfcs/RFC-019-trace-metrics.md) |
 | `use.log` | Log | Structured invocation logging | [RFC-020](https://github.com/shashi3070/capio/blob/main/docs/rfcs/RFC-020-logging-audit.md) |
+| `use.audit` | Audit | Append-only audit trail | [RFC-020](https://github.com/shashi3070/capio/blob/main/docs/rfcs/RFC-020-logging-audit.md) |
+| `use.auth` | Auth | Authentication + scopes/policy | [RFC-020](https://github.com/shashi3070/capio/blob/main/docs/rfcs/RFC-020-logging-audit.md) |
+| `use.validate` | Validate | Schema-based input/output checks | [RFC-022](https://github.com/shashi3070/capio/blob/main/docs/rfcs/RFC-022-validation-serialization.md) |
+| `use.encrypt` | Encrypt | Encrypt sensitive fields | [RFC-022](https://github.com/shashi3070/capio/blob/main/docs/rfcs/RFC-022-validation-serialization.md) |
+| `use.mask` | Mask | Redact sensitive fields | [RFC-022](https://github.com/shashi3070/capio/blob/main/docs/rfcs/RFC-022-validation-serialization.md) |
+| `use.serialize` | Serialize | Input/output codec boundary | [RFC-022](https://github.com/shashi3070/capio/blob/main/docs/rfcs/RFC-022-validation-serialization.md) |
+| `use.dedup` | Dedup | One result for identical calls | [RFC-022](https://github.com/shashi3070/capio/blob/main/docs/rfcs/RFC-022-validation-serialization.md) |
+| `use.publish` | Publish | Publish payloads to a topic | [RFC-023](https://github.com/shashi3070/capio/blob/main/docs/rfcs/RFC-023-events-messaging-transactions.md) |
+| `use.consume` | Consume | Dispatch topic messages | [RFC-023](https://github.com/shashi3070/capio/blob/main/docs/rfcs/RFC-023-events-messaging-transactions.md) |
+| `use.queue` | Queue | Enqueue / process tasks | [RFC-023](https://github.com/shashi3070/capio/blob/main/docs/rfcs/RFC-023-events-messaging-transactions.md) |
+| `use.transaction` | Transaction | Commit / rollback participants | [RFC-023](https://github.com/shashi3070/capio/blob/main/docs/rfcs/RFC-023-events-messaging-transactions.md) |
+| `use.workflow` | Workflow | Ordered steps + recovery | [RFC-023](https://github.com/shashi3070/capio/blob/main/docs/rfcs/RFC-023-events-messaging-transactions.md) |
+| `use.cron` | Cron | Gate calls on a schedule | [RFC-023](https://github.com/shashi3070/capio/blob/main/docs/rfcs/RFC-023-events-messaging-transactions.md) |
+| `use.compensate` | Compensate | Best-effort rollback actions | [RFC-023](https://github.com/shashi3070/capio/blob/main/docs/rfcs/RFC-023-events-messaging-transactions.md) |
+| `use.idempotent` | Idempotent | Idempotency-key replay protection | [RFC-023](https://github.com/shashi3070/capio/blob/main/docs/rfcs/RFC-023-events-messaging-transactions.md) |
+| `use.llm` | LLM | Model provider boundary | [RFC-030](https://github.com/shashi3070/capio/blob/main/docs/rfcs/RFC-030-ai.md) |
+| `use.llm_cache` | LLM Cache | Exact-match LLM caching | [RFC-030](https://github.com/shashi3070/capio/blob/main/docs/rfcs/RFC-030-ai.md) |
+| `use.semantic_cache` | Semantic Cache | Embedding-similarity caching | [RFC-030](https://github.com/shashi3070/capio/blob/main/docs/rfcs/RFC-030-ai.md) |
+| `use.prompt_cache` | Prompt Cache | Provider cache-control markers | [RFC-030](https://github.com/shashi3070/capio/blob/main/docs/rfcs/RFC-030-ai.md) |
+| `use.memory` | Memory | Conversational memory load/store | [RFC-030](https://github.com/shashi3070/capio/blob/main/docs/rfcs/RFC-030-ai.md) |
+| `use.rag` | RAG | Retrieve + inject context | [RFC-030](https://github.com/shashi3070/capio/blob/main/docs/rfcs/RFC-030-ai.md) |
+| `use.ingest` | Ingest | Chunk + index documents | [RFC-030](https://github.com/shashi3070/capio/blob/main/docs/rfcs/RFC-030-ai.md) |
+| `use.tool` | Tool | Expose a callable as a model tool | [RFC-030](https://github.com/shashi3070/capio/blob/main/docs/rfcs/RFC-030-ai.md) |
+| `use.agent` | Agent | Tool-calling loop | [RFC-030](https://github.com/shashi3070/capio/blob/main/docs/rfcs/RFC-030-ai.md) |
+| `use.guardrails` | Guardrails | Input/output safety checks | [RFC-030](https://github.com/shashi3070/capio/blob/main/docs/rfcs/RFC-030-ai.md) |
+| `use.token_budget` | Token Budget | Bound input tokens | [RFC-030](https://github.com/shashi3070/capio/blob/main/docs/rfcs/RFC-030-ai.md) |
+| `use.model_router` | Model Router | Route requests to a model | [RFC-030](https://github.com/shashi3070/capio/blob/main/docs/rfcs/RFC-030-ai.md) |
 
 See the [usage guide](https://github.com/shashi3070/capio/blob/main/docs/usage.md)
 for every option of every capability (types, defaults, examples).
@@ -416,6 +452,7 @@ If your OS blocks pip-generated console scripts, use `python -m capio.cli ...`.
 
 - **[Architecture guide](https://github.com/shashi3070/capio/blob/main/docs/architecture.md)** — how each part is built: code walkthrough, snippets, and the invocation flow
 - **[Usage guide](https://github.com/shashi3070/capio/blob/main/docs/usage.md)** — the full manual: every capability and configuration option
+- **[Capability cookbook](https://github.com/shashi3070/capio/blob/main/docs/cookbook.md)** — a runnable example for each of the 37 capabilities
 - **[Custom capabilities guide](https://github.com/shashi3070/capio/blob/main/docs/custom_capabilities.md)** — SDK reference, lifecycle, backends, and an end-to-end example
 - **[RFCs](https://github.com/shashi3070/capio/tree/main/docs/rfcs)** — the normative architecture: RFC-000 index, RFC-001 vision, RFC-002 core concepts, RFC-003 `use` API, RFC-004…024 architecture, RFC-025 errors, RFC-026 security, RFC-027 performance, RFC-028 CLI, RFC-029 testing, RFC-030 AI/agents/LLM/MCP, RFC-031 reference implementation, RFC-032 roadmap, RFC-033 migration/FAQ
 - **[Changelog](https://github.com/shashi3070/capio/blob/main/CHANGELOG.md)**
@@ -428,9 +465,9 @@ pytest tests/ -v
 ruff check .
 ```
 
-Status: **v0.1.0 — MVP reference implementation** (RFC-031). Core capabilities
-implemented: `retry`, `cache`, `timeout`, `circuit_breaker`, `rate_limit`,
-`trace`, `metrics`, `log`. 67 tests, ruff clean.
+Status: **v1.0.0** — the full reference implementation per RFC-031: all 37
+capabilities (resilience, data/auth, messaging/orchestration, AI,
+observability), 8 built-in backends, 126 tests, ruff clean.
 
 ## License
 

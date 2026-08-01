@@ -199,6 +199,7 @@ class Use:
             async def _capio_async_wrapper(*args: Any, **kwargs: Any) -> Any:
                 return await runtime.call(original, meta, args, kwargs)
 
+            _capio_async_wrapper.__dict__.pop("__capio_leaf__", None)  # type: ignore[attr-defined]
             _capio_async_wrapper.__capio__ = meta  # type: ignore[attr-defined]
             _capio_async_wrapper.__capio_runtime__ = runtime  # type: ignore[attr-defined]
             return _capio_async_wrapper
@@ -207,6 +208,7 @@ class Use:
         def _capio_sync_wrapper(*args: Any, **kwargs: Any) -> Any:
             return runtime.call(original, meta, args, kwargs)
 
+        _capio_sync_wrapper.__dict__.pop("__capio_leaf__", None)  # type: ignore[attr-defined]
         _capio_sync_wrapper.__capio__ = meta  # type: ignore[attr-defined]
         _capio_sync_wrapper.__capio_runtime__ = runtime  # type: ignore[attr-defined]
         return _capio_sync_wrapper

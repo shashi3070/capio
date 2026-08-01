@@ -241,6 +241,53 @@ class CancellationError(CapabilityException):
     code: ClassVar[str] = "capio.execution.cancelled"
 
 
+class IdempotencyConflictError(CapabilityException):
+    """An idempotency key was replayed with a different request (RFC-023 §5)."""
+
+    code: ClassVar[str] = "capio.execution.idempotency_conflict"
+
+
+class TransactionError(CapabilityException):
+    """A transactional scope failed or could not be completed (RFC-023 §4)."""
+
+    code: ClassVar[str] = "capio.execution.transaction"
+
+
+class WorkflowError(CapabilityException):
+    """A workflow step failed or the workflow could not be recovered (RFC-023 §6)."""
+
+    code: ClassVar[str] = "capio.execution.workflow"
+
+
+class GuardrailError(CapabilityException):
+    """An input/output guardrail check failed (RFC-030 §6)."""
+
+    code: ClassVar[str] = "capio.guardrail.error"
+
+
+class TokenBudgetExceededError(CapabilityException):
+    """A token budget was exceeded (RFC-030 §7)."""
+
+    code: ClassVar[str] = "capio.ai.token_budget"
+
+    def __init__(self, message: str = "token budget exceeded", *, used: int = 0, budget: int = 0):
+        super().__init__(message)
+        self.used = used
+        self.budget = budget
+
+
+class ProviderError(CapabilityException):
+    """A model/LLM provider call failed (RFC-030 §2)."""
+
+    code: ClassVar[str] = "capio.ai.provider"
+
+
+class ToolError(CapabilityException):
+    """A tool call could not be dispatched or failed (RFC-030 §5)."""
+
+    code: ClassVar[str] = "capio.ai.tool"
+
+
 # ---------------------------------------------------------------------------
 # Data group (RFC-022)
 # ---------------------------------------------------------------------------
@@ -350,4 +397,8 @@ NON_RETRYABLE_CAPIO: tuple[type[CapabilityException], ...] = (
     RateLimitExceededError,
     ConcurrencyLimitError,
     ConfigurationError,
+    IdempotencyConflictError,
+    GuardrailError,
+    TokenBudgetExceededError,
+    SerializationError,
 )
