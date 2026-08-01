@@ -37,21 +37,30 @@ A **capability runtime**, not a decorator library.
 
 - **8 batteries-included capabilities** — retry, cache, timeout, circuit
   breaker, rate limit, trace, metrics, log — plus a plugin SDK for your own.
+  → [every capability and option](https://github.com/shashi3070/capio/blob/main/docs/usage.md#4-capability-reference-every-option)
 - **One uniform API** — `@use.<name>(...)` chained form and the equivalent
   `@use(...)` composite form.
+  → [the `use` API](https://github.com/shashi3070/capio/blob/main/docs/usage.md#3-the-use-api)
 - **Sync, async, and generators** — one decorator works for `def`,
   `async def`, generator, and async-generator functions.
+  → [sync + async + generators](https://github.com/shashi3070/capio/blob/main/docs/usage.md#11-sync--async--generators)
 - **Lazy pipelines** — decorating costs microseconds and does no I/O; the
   pipeline is built on the first call and memoized.
+  → [invocation flow](https://github.com/shashi3070/capio/blob/main/docs/architecture.md#2-the-invocation-flow-tldr)
 - **Fail-safe by default** — cache, trace, metrics, and log degrade gracefully
   when their backend fails; opt in to hard errors with `strict` mode.
+  → [runtime config](https://github.com/shashi3070/capio/blob/main/docs/usage.md#6-runtime-configuration)
 - **Cancellation-safe** — timeouts and cancellations are `BaseException`s, so
   retry and circuit-breaker never swallow them.
+  → [error model](https://github.com/shashi3070/capio/blob/main/docs/usage.md#8-error-model)
 - **Event bus** — subscribe to structured events (`cache.hit`, `retry.attempt`,
   `circuit.open`, …) without touching your functions.
+  → [all emitted events](https://github.com/shashi3070/capio/blob/main/docs/usage.md#9-events)
 - **Context injection** — read invocation IDs, environment, and deadlines via
   `use.context()`.
+  → [context & events](https://github.com/shashi3070/capio/blob/main/docs/usage.md#34-injecting-the-context--usecontext)
 - **CLI** — `capio doctor`, `inspect`, `graph`, and `benchmark`.
+  → [CLI reference](https://github.com/shashi3070/capio/blob/main/docs/usage.md#10-cli)
 
 ## Installation
 
