@@ -1,0 +1,70 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "capio"
+version = "0.1.0"
+description = "Composable capabilities for Python: resilience, caching, observability, and AI behavior. A capability runtime, not a decorator library."
+readme = "README.md"
+license-files = ["LICENSE"]
+requires-python = ">=3.9"
+authors = [
+    { name = "Shashi Kundan", email = "shashikundan0001@gmail.com" },
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+]
+keywords = [
+    "capability", "decorator", "retry", "cache", "timeout", "circuit-breaker",
+    "rate-limit", "observability", "resilience", "python", "ai",
+]
+dependencies = [
+    "typer>=0.9",
+]
+
+[project.urls]
+Homepage = "https://github.com/shashi3070/capio"
+Repository = "https://github.com/shashi3070/capio"
+Documentation = "https://github.com/shashi3070/capio#readme"
+Issues = "https://github.com/shashi3070/capio/issues"
+Changelog = "https://github.com/shashi3070/capio/blob/main/CHANGELOG.md"
+
+[project.scripts]
+capio = "capio.cli:app"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7",
+    "pytest-cov>=4",
+    "ruff>=0.1",
+    "mypy>=1.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+capio = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+
+[tool.coverage.run]
+source = ["src/capio"]
