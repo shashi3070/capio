@@ -17,7 +17,7 @@ from .registry import registry
 if TYPE_CHECKING:
     from .pipeline import ExecutionPipeline
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 
 class CapioRuntime:

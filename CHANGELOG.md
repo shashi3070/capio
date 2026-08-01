@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented in this file.
 
+## v0.1.1 (2026-08-01)
+
+- Documentation: rewritten README with feature overview, how-it-works section,
+  error-handling guide, and architecture/pipeline diagrams
+  (`docs/images/architecture.png`, `docs/images/pipeline.png`).
+- Fix README links to point at absolute GitHub URLs so they resolve on PyPI.
+
 ## v0.1.0 (2026-08-01)
 
 - Initial MVP reference implementation per RFC-031.

@@ -134,6 +134,96 @@ event). Under `strict` mode the same failures raise.
 A deep, module-by-module code walkthrough lives in the
 [architecture document](https://github.com/shashi3070/capio/blob/main/docs/architecture.md).
 
+## Error handling
+
+Capio raises from the `capio.exceptions` module. Two rules to remember:
+
+1. **Timeouts and cancellations are `BaseException` subclasses** — `except
+   Exception` will *not* catch them. Catch `CapioTimeoutError` or the base
+   `CapioCancelledBase` explicitly.
+2. **Everything else derives from `CapabilityException`** (an `Exception`), with
+   structured attributes `capability`, `code`, and `extra`.
+
+### Timeout
+
+```python
+from capio import use
+from capio.exceptions import CapioTimeoutError
+
+@use.timeout(seconds=1)
+def slow() -> str:
+    ...
+
+try:
+    slow()
+except CapioTimeoutError as exc:
+    print(f"timed out after {exc.seconds}s")   # exc.seconds == 1.0
+```
+
+Prefer returning a sentinel over raising? Set `return_on`:
+
+```python
+@use.timeout(seconds=1, return_on="timeout")   # returns "timeout" instead of raising
+def slow2() -> str:
+    ...
+```
+
+`return_on` and `raise_on=True` are mutually exclusive (config error).
+
+### Retry exhaustion
+
+```python
+from capio import use
+from capio.exceptions import RetryExhaustedError
+
+@use.retry(max_attempts=3)
+def flaky() -> None:
+    raise ValueError("boom")
+
+try:
+    flaky()
+except RetryExhaustedError as exc:
+    last_error = exc.__cause__      # the final ValueError
+    print(exc.capability)           # "retry"
+    print(exc.code)                 # "capio.retry.exhausted"
+```
+
+Use `on_final="reraise_original"` to re-raise the first failure instead of
+wrapping it.
+
+### Circuit breaker and rate limit
+
+```python
+from capio.exceptions import CircuitOpenError, RateLimitExceededError
+
+@use.circuit_breaker(failure_threshold=3)
+def call_api() -> dict: ...
+
+@use.rate_limit(limit=1, window="1s")
+def tick() -> None: ...
+
+try:
+    call_api()
+except CircuitOpenError:
+    ...  # dependency is unhealthy; fail fast or serve a fallback
+
+try:
+    tick()
+except RateLimitExceededError as exc:
+    print("retry after", exc.retry_after)   # seconds
+```
+
+With `use.retry`, these two are **not retried by default** (they are
+non-retryable unless you explicitly list them in `retry_on`).
+
+### Configuration errors
+
+These are raised at decoration / first-call time and are all
+`CapabilityException`s: `ConfigurationError`, `UnknownCapabilityError`,
+`DuplicateCapabilityError`, `ConflictingPipelineError`,
+`UnsupportedExecutionKindError`, `CacheKeyError`, `BackendUnavailableError`
+(strict mode).
+
 ## Capabilities
 
 | Decorator | Capability | Purpose | RFC |
