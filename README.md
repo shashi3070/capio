@@ -1,27 +1,75 @@
 # capio
 
 Composable capabilities for Python: resilience, caching, observability, and AI behavior.
+
 A **capability runtime**, not a decorator library.
 
-> Capio is the composable capability layer for Python applications. Apply cross-cutting
-> behavior to functions and methods — retries, caching, timeouts, circuit breaking, rate
-> limiting, tracing, metrics, logging, and more — with one uniform, typed API.
+[![PyPI version](https://img.shields.io/pypi/v/capio.svg)](https://pypi.org/project/capio/)
+[![Python versions](https://img.shields.io/pypi/pyversions/capio.svg)](https://pypi.org/project/capio/)
+[![Wheel](https://img.shields.io/pypi/wheel/capio.svg)](https://pypi.org/project/capio/)
+[![License](https://img.shields.io/pypi/l/capio.svg)](https://github.com/shashi3070/capio/blob/main/LICENSE)
+
+> Capio is the composable capability layer for Python applications. Apply
+> cross-cutting behavior to functions and methods — retries, caching, timeouts,
+> circuit breaking, rate limiting, tracing, metrics, logging, and more — with one
+> uniform, typed API.
 >
 > Designed for sync and async Python, generator-friendly, backend-agnostic, and
-> fail-safe by default. The architecture is specified in `docs/rfcs/` (RFC-000…033).
+> fail-safe by default. The architecture is specified in the [RFC documents](https://github.com/shashi3070/capio/tree/main/docs/rfcs) (RFC-000…033).
 
-## Status
+---
 
-**v0.1.0 — MVP reference implementation** (RFC-031). Core capabilities implemented:
-`retry`, `cache`, `timeout`, `circuit_breaker`, `rate_limit`, `trace`, `metrics`, `log`.
+## Table of contents
 
-## Install
+- [Features](#features)
+- [Installation](#installation)
+- [Quick start](#quick-start)
+- [How it works](#how-it-works)
+- [Capabilities](#capabilities)
+- [Custom capabilities](#custom-capabilities)
+- [Context & events](#context--events)
+- [CLI](#cli)
+- [Documentation](#documentation)
+- [Development](#development)
+- [License](#license)
+
+## Features
+
+- **8 batteries-included capabilities** — retry, cache, timeout, circuit
+  breaker, rate limit, trace, metrics, log — plus a plugin SDK for your own.
+- **One uniform API** — `@use.<name>(...)` chained form and the equivalent
+  `@use(...)` composite form.
+- **Sync, async, and generators** — one decorator works for `def`,
+  `async def`, generator, and async-generator functions.
+- **Lazy pipelines** — decorating costs microseconds and does no I/O; the
+  pipeline is built on the first call and memoized.
+- **Fail-safe by default** — cache, trace, metrics, and log degrade gracefully
+  when their backend fails; opt in to hard errors with `strict` mode.
+- **Cancellation-safe** — timeouts and cancellations are `BaseException`s, so
+  retry and circuit-breaker never swallow them.
+- **Event bus** — subscribe to structured events (`cache.hit`, `retry.attempt`,
+  `circuit.open`, …) without touching your functions.
+- **Context injection** — read invocation IDs, environment, and deadlines via
+  `use.context()`.
+- **CLI** — `capio doctor`, `inspect`, `graph`, and `benchmark`.
+
+## Installation
 
 ```bash
+pip install capio
+```
+
+For development, clone the repo and install with the dev extra:
+
+```bash
+git clone https://github.com/shashi3070/capio.git
+cd capio
 pip install -e ".[dev]"
 ```
 
-## Quick Start
+Capio has **no third-party runtime dependencies** beyond the CLI (Typer).
+
+## Quick start
 
 ```python
 from capio import use
@@ -34,8 +82,8 @@ def search(query: str) -> list[str]:
     ...
 ```
 
-Capabilities compose as nested scopes; the decorator written highest runs outermost.
-The composite form is equivalent:
+Capabilities compose as nested scopes; the decorator written highest runs
+outermost. The composite form is equivalent (and sorts by priority):
 
 ```python
 from capio import use
@@ -55,27 +103,58 @@ Async works with the same API:
 ```python
 @use.retry(max_attempts=3)
 @use.cache(ttl="30s")
+@use.circuit_breaker(failure_threshold=5, reset_timeout="30s")
 async def fetch(url: str) -> bytes:
     ...
 ```
+
+Every capability and every option is documented in the
+[usage guide](https://github.com/shashi3070/capio/blob/main/docs/usage.md).
+
+## How it works
+
+Decorating a function attaches metadata (`fn.__capio__`) and a thin wrapper —
+nothing else. On the **first call**, Capio builds the execution pipeline
+(validating configuration, running the capability lifecycle, resolving
+backends) and memoizes it. Every call then runs the wrapped function through
+that pipeline.
+
+![Capio architecture](https://raw.githubusercontent.com/shashi3070/capio/main/docs/images/architecture.png)
+
+Inside the pipeline, capabilities wrap each other like an onion — each runs,
+delegates to the next via `call_next(ctx)`, and resumes on the way back out.
+Ordering is outermost-first; the composite form sorts by priority:
+
+![Capio pipeline ordering](https://raw.githubusercontent.com/shashi3070/capio/main/docs/images/pipeline.png)
+
+Capabilities are **fail-safe by default**: if the cache, trace, metrics, or log
+backend fails, the invocation proceeds untouched (the failure is emitted as an
+event). Under `strict` mode the same failures raise.
+
+A deep, module-by-module code walkthrough lives in the
+[architecture document](https://github.com/shashi3070/capio/blob/main/docs/architecture.md).
 
 ## Capabilities
 
 | Decorator | Capability | Purpose | RFC |
 | --------- | ---------- | ------- | --- |
-| `use.retry` | Retry | Retry failures with backoff + jitter | RFC-017 |
-| `use.cache` | Cache | In-memory cache with TTL | RFC-016 |
-| `use.timeout` | Timeout | Bound execution time | RFC-018 |
-| `use.circuit_breaker` | Circuit Breaker | Fail fast when a dependency is unhealthy | RFC-018 |
-| `use.rate_limit` | Rate Limit | Admission control | RFC-018 |
-| `use.trace` | Trace | Span recording | RFC-019 |
-| `use.metrics` | Metrics | Counters + histograms | RFC-019 |
-| `use.log` | Log | Structured invocation logging | RFC-020 |
+| `use.retry` | Retry | Retry failures with backoff + jitter | [RFC-017](https://github.com/shashi3070/capio/blob/main/docs/rfcs/RFC-017-retry.md) |
+| `use.cache` | Cache | In-memory cache with TTL | [RFC-016](https://github.com/shashi3070/capio/blob/main/docs/rfcs/RFC-016-cache.md) |
+| `use.timeout` | Timeout | Bound execution time | [RFC-018](https://github.com/shashi3070/capio/blob/main/docs/rfcs/RFC-018-breaker-timeout-ratelimit.md) |
+| `use.circuit_breaker` | Circuit Breaker | Fail fast when a dependency is unhealthy | [RFC-018](https://github.com/shashi3070/capio/blob/main/docs/rfcs/RFC-018-breaker-timeout-ratelimit.md) |
+| `use.rate_limit` | Rate Limit | Admission control | [RFC-018](https://github.com/shashi3070/capio/blob/main/docs/rfcs/RFC-018-breaker-timeout-ratelimit.md) |
+| `use.trace` | Trace | Span recording | [RFC-019](https://github.com/shashi3070/capio/blob/main/docs/rfcs/RFC-019-trace-metrics.md) |
+| `use.metrics` | Metrics | Counters + histograms | [RFC-019](https://github.com/shashi3070/capio/blob/main/docs/rfcs/RFC-019-trace-metrics.md) |
+| `use.log` | Log | Structured invocation logging | [RFC-020](https://github.com/shashi3070/capio/blob/main/docs/rfcs/RFC-020-logging-audit.md) |
+
+See the [usage guide](https://github.com/shashi3070/capio/blob/main/docs/usage.md)
+for every option of every capability (types, defaults, examples).
 
 ## Custom capabilities
 
 ```python
-from capio import Capability
+from capio import Capability, use
+from capio.registry import registry
 
 class Audit(Capability):
     name = "audit"
@@ -86,11 +165,33 @@ class Audit(Capability):
         print("audit:", ctx.fn_name, result)
         return result
 
-# register and use
-from capio.registry import registry
 registry.register(Audit)
-# from capio import use
-# @use.audit()
+
+@use.audit()
+def handler(x: int) -> int:
+    return x * 2
+```
+
+For async-aware capabilities, override `run_async` and `await call_next(ctx)`.
+
+## Context & events
+
+Inject the per-invocation `Context` into any decorated function:
+
+```python
+from capio import use
+
+@use.context()
+def handler(ctx):
+    return ctx.invocation_id, ctx.env, ctx.strict
+```
+
+Subscribe to capability events:
+
+```python
+from capio import default_runtime
+
+default_runtime().event_bus.subscribe("cache.hit", lambda e: print("hit", e.data))
 ```
 
 ## CLI
@@ -103,6 +204,15 @@ capio benchmark           # run micro-benchmarks against RFC-027 budgets
 capio version             # print version
 ```
 
+If your OS blocks pip-generated console scripts, use `python -m capio.cli ...`.
+
+## Documentation
+
+- **[Architecture guide](https://github.com/shashi3070/capio/blob/main/docs/architecture.md)** — how each part is built: code walkthrough, snippets, and the invocation flow
+- **[Usage guide](https://github.com/shashi3070/capio/blob/main/docs/usage.md)** — the full manual: every capability and configuration option
+- **[RFCs](https://github.com/shashi3070/capio/tree/main/docs/rfcs)** — the normative architecture: RFC-000 index, RFC-001 vision, RFC-002 core concepts, RFC-003 `use` API, RFC-004…024 architecture, RFC-025 errors, RFC-026 security, RFC-027 performance, RFC-028 CLI, RFC-029 testing, RFC-030 AI/agents/LLM/MCP, RFC-031 reference implementation, RFC-032 roadmap, RFC-033 migration/FAQ
+- **[Changelog](https://github.com/shashi3070/capio/blob/main/CHANGELOG.md)**
+
 ## Development
 
 ```bash
@@ -111,20 +221,10 @@ pytest tests/ -v
 ruff check .
 ```
 
-## Documentation
-
-- **[`docs/architecture.md`](docs/architecture.md)** — how Capio is built, code walkthrough and invocation flow
-- **[`docs/usage.md`](docs/usage.md)** — the full manual: every capability and configuration option
-
-The normative architecture lives in `docs/rfcs/`:
-
-- **RFC-000** index and reading order
-- **RFC-001** vision, **RFC-002** core concepts, **RFC-003** `use` API
-- **RFC-004…024** architecture (runtime, lifecycle, context, config, DI, plugins, backends)
-- **RFC-025** errors, **RFC-026** security, **RFC-027** performance, **RFC-028** CLI,
-  **RFC-029** testing, **RFC-030** AI/agents/LLM/MCP, **RFC-031** reference implementation,
-  **RFC-032** roadmap, **RFC-033** migration/FAQ
+Status: **v0.1.0 — MVP reference implementation** (RFC-031). Core capabilities
+implemented: `retry`, `cache`, `timeout`, `circuit_breaker`, `rate_limit`,
+`trace`, `metrics`, `log`. 67 tests, ruff clean.
 
 ## License
 
-MIT
+MIT — see [LICENSE](https://github.com/shashi3070/capio/blob/main/LICENSE).
